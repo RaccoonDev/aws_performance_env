@@ -11,6 +11,19 @@ variable "aws_region" {
   default = "eu-central-1"
 }
 
+variable "db_password" {
+  type      = string
+  sensitive = true
+}
+
+variable "az_one" {
+  type = string
+}
+
+variable "az_two" {
+  type = string
+}
+
 provider "aws" {
   access_key = var.aws_access_key
   secret_key = var.aws_secret_key
@@ -35,8 +48,15 @@ resource "aws_vpc" "test-env" {
 }
 
 resource "aws_subnet" "subnet-uno" {
-  cidr_block = cidrsubnet(aws_vpc.test-env.cidr_block, 3, 1)
-  vpc_id     = aws_vpc.test-env.id
+  cidr_block        = cidrsubnet(aws_vpc.test-env.cidr_block, 3, 1)
+  vpc_id            = aws_vpc.test-env.id
+  availability_zone = var.az_one
+}
+
+resource "aws_subnet" "subnet-duo" {
+  cidr_block        = cidrsubnet(aws_vpc.test-env.cidr_block, 3, 2)
+  vpc_id            = aws_vpc.test-env.id
+  availability_zone = var.az_two
 }
 
 resource "aws_security_group" "ingress_ssh" {
@@ -155,4 +175,58 @@ output "performance_test_instance_1_public_dns" {
 
 output "performance_test_instance_2_internal_ip" {
   value = aws_instance.performance_test_2.private_ip
+}
+
+//////////////// RDS ////////////////
+
+resource "aws_security_group" "db" {
+  name = "db_security_group"
+
+  description = "RDS postgres servers (terraform-managed)"
+  vpc_id      = aws_vpc.test-env.id
+
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = [
+      "::/0"
+    ]
+  }
+}
+
+resource "aws_db_subnet_group" "db_subnet_1" {
+  name       = "main"
+  subnet_ids = [aws_subnet.subnet-uno.id, aws_subnet.subnet-duo.id]
+
+  tags = {
+    Name = "Perf Test DB Subnet 1"
+  }
+}
+
+resource "aws_db_instance" "perf_db_1" {
+  allocated_storage       = 20
+  backup_retention_period = 1
+  db_subnet_group_name    = aws_db_subnet_group.db_subnet_1.name
+  engine                  = "postgres"
+  engine_version          = "12.5"
+  identifier              = "perfdb1"
+  instance_class          = "db.t2.micro"
+  multi_az                = false
+  name                    = "perf_db_1"
+  password                = var.db_password
+  port                    = 5432
+  publicly_accessible     = false
+  storage_encrypted       = false
+  storage_type            = "gp2"
+  username                = "perf_db_user"
+  vpc_security_group_ids  = [aws_security_group.db.id]
 }
