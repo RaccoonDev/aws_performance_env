@@ -93,6 +93,7 @@ resource "aws_instance" "performance_test_1" {
   key_name        = "MyDefaultKeyPair"
   security_groups = [aws_security_group.ingress_ssh.id]
   subnet_id       = aws_subnet.subnet-uno.id
+  user_data = file("configure_instance.sh")
 }
 
 resource "aws_internet_gateway" "test-env-gw" {
