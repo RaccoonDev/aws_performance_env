@@ -96,6 +96,19 @@ resource "aws_instance" "performance_test_1" {
   user_data              = file("configure_instance.sh")
 }
 
+resource "aws_instance" "performance_test_2" {
+  ami           = data.aws_ami.amazon-linux-2.id
+  instance_type = "t2.micro"
+  tags = {
+    Name    = "Pefromance Test 2"
+    Purpose = "PerformanceTesting"
+  }
+  key_name               = "MyDefaultKeyPair"
+  vpc_security_group_ids = [aws_security_group.ingress_ssh.id]
+  subnet_id              = aws_subnet.subnet-uno.id
+  user_data              = file("configure_instance.sh")
+}
+
 resource "aws_internet_gateway" "test-env-gw" {
   vpc_id = aws_vpc.test-env.id
 
@@ -138,4 +151,8 @@ output "performance_test_instance_1_ip" {
 
 output "performance_test_instance_1_public_dns" {
   value = aws_eip.performance_test_1_ip.public_dns
+}
+
+output "performance_test_instance_2_internal_ip" {
+  value = aws_instance.performance_test_2.private_ip
 }
